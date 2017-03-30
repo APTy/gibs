@@ -11,7 +11,7 @@ import (
 const (
 	secret   = "Ezv27ceMoBruteP4gh1c6Kebs69J4F5KhJNIewmGJxY="
 	icmpIPv4 = "ip4:icmp"
-	localIfc = "0.0.0.0"
+	localIfc = ""
 	seqInit  = 0
 	mtu      = 1400
 )
@@ -89,15 +89,18 @@ func (c *icmpCat) Listen() {
 	for {
 		buf := make([]byte, 1500)
 		n, peer, err := c.conn.ReadFrom(buf)
+		log.Printf("got %v", buf)
 		if err != nil {
 			log.Printf("error: %v", err)
 			continue
 		}
 		msg, err := parseEcho(buf, n)
+		log.Printf("got %+v", msg)
 		if err != nil {
 			continue
 		}
 		res, err := c.cryptor.Decrypt(msg)
+		log.Printf("got %s", res)
 		if err != nil {
 			continue
 		}

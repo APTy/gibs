@@ -28,7 +28,7 @@ func parseEcho(msg []byte, n int) ([]byte, error) {
 		return nil, err
 	}
 	switch rm.Type {
-	case ipv4.ICMPTypeEchoReply:
+	case ipv4.ICMPTypeEcho:
 		echo, ok := rm.Body.(*icmp.Echo)
 		if !ok {
 			return nil, errors.New("failed to parse echo reply")
