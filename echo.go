@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"os"
 
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv4"
@@ -15,7 +14,7 @@ func newEcho(typ ipv4.ICMPType, data []byte, seq int) ([]byte, error) {
 	wm := icmp.Message{
 		Type: typ, Code: 0,
 		Body: &icmp.Echo{
-			ID: os.Getpid() & 0xffff, Seq: seq,
+			ID: 12345 & 0xffff, Seq: seq,
 			Data: data,
 		},
 	}
