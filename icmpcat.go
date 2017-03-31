@@ -6,13 +6,14 @@ import (
 	"net"
 
 	"golang.org/x/net/icmp"
+	"golang.org/x/net/ipv4"
 )
 
 const (
 	secret   = "Ezv27ceMoBruteP4gh1c6Kebs69J4F5KhJNIewmGJxY="
 	icmpIPv4 = "ip4:icmp"
 	localIfc = "0.0.0.0"
-	seqInit  = 0
+	seqInit  = 1
 	mtu      = 1400
 )
 
@@ -21,7 +22,7 @@ const (
 type ICMPCat interface {
 
 	// Send a slice of bytes to the remote host.
-	Send([]byte, string) error
+	Send(ipv4.ICMPType, []byte, string) error
 
 	// OnReceive registers a callback to invoke with received messages.
 	OnReceive(func(*net.IPAddr, []byte))
@@ -54,7 +55,7 @@ type icmpCat struct {
 	callback func(*net.IPAddr, []byte)
 }
 
-func (c *icmpCat) Send(b []byte, hostIP string) error {
+func (c *icmpCat) Send(typ ipv4.ICMPType, b []byte, hostIP string) error {
 	host := net.ParseIP(hostIP)
 	if host == nil {
 		return fmt.Errorf("failed to parse IP: %v", hostIP)
@@ -69,7 +70,7 @@ func (c *icmpCat) Send(b []byte, hostIP string) error {
 		}
 		data := c.cryptor.Encrypt(b[start:end])
 		log.Printf("sent %x", data)
-		msg, err := newEcho(data, c.seq)
+		msg, err := newEcho(typ, data, c.seq)
 		if err != nil {
 			return err
 		}

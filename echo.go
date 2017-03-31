@@ -11,9 +11,9 @@ import (
 // IANA protocol number assigned to ICMP IPv4
 const protoICMP = 1
 
-func newEcho(data []byte, seq int) ([]byte, error) {
+func newEcho(typ ipv4.ICMPType, data []byte, seq int) ([]byte, error) {
 	wm := icmp.Message{
-		Type: ipv4.ICMPTypeEchoReply, Code: 0,
+		Type: typ, Code: 0,
 		Body: &icmp.Echo{
 			ID: os.Getpid() & 0xffff, Seq: seq,
 			Data: data,
@@ -28,7 +28,7 @@ func parseEcho(msg []byte, n int) ([]byte, error) {
 		return nil, err
 	}
 	switch rm.Type {
-	case ipv4.ICMPTypeEchoReply:
+	case ipv4.ICMPTypeEchoReply, ipv4.ICMPTypeEcho:
 		echo, ok := rm.Body.(*icmp.Echo)
 		if !ok {
 			return nil, errors.New("failed to parse echo reply")
