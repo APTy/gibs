@@ -13,7 +13,7 @@ const protoICMP = 1
 
 func newEcho(data []byte, seq int) ([]byte, error) {
 	wm := icmp.Message{
-		Type: ipv4.ICMPTypeEcho, Code: 0,
+		Type: ipv4.ICMPTypeEchoReply, Code: 0,
 		Body: &icmp.Echo{
 			ID: os.Getpid() & 0xffff, Seq: seq,
 			Data: data,
@@ -28,7 +28,7 @@ func parseEcho(msg []byte, n int) ([]byte, error) {
 		return nil, err
 	}
 	switch rm.Type {
-	case ipv4.ICMPTypeEcho:
+	case ipv4.ICMPTypeEchoReply:
 		echo, ok := rm.Body.(*icmp.Echo)
 		if !ok {
 			return nil, errors.New("failed to parse echo reply")
