@@ -14,7 +14,7 @@ func newEcho(typ ipv4.ICMPType, data []byte, seq int) ([]byte, error) {
 	wm := icmp.Message{
 		Type: typ, Code: 0,
 		Body: &icmp.Echo{
-			ID: 12345 & 0xffff, Seq: seq,
+			ID: 12345 & 0xffff, Seq: 1,
 			Data: data,
 		},
 	}

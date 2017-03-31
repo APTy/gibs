@@ -69,7 +69,7 @@ func (c *icmpCat) Send(typ ipv4.ICMPType, b []byte, hostIP string) error {
 			end = len(b)
 		}
 		data := c.cryptor.Encrypt(b[start:end])
-		log.Printf("sent %x", data)
+		// log.Printf("sent %x", data)
 		msg, err := newEcho(typ, data, c.seq)
 		if err != nil {
 			return err
@@ -99,7 +99,7 @@ func (c *icmpCat) Listen() {
 		if err != nil {
 			continue
 		}
-		log.Printf("got %x", msg)
+		// log.Printf("got %x", msg)
 		res, err := c.cryptor.Decrypt(msg)
 		if err != nil {
 			continue

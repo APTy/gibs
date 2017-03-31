@@ -14,7 +14,7 @@ func main() {
 		return
 	}
 
-	if flags.host == "" || flags.cmd == "" {
+	if flags.host == "" {
 		log.Fatal("missing host or cmd")
 	}
 	cli.SendCmd(flags.cmd, flags.host)

