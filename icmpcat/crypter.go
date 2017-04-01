@@ -1,4 +1,4 @@
-package main
+package icmpcat
 
 import (
 	"crypto/aes"
@@ -12,13 +12,13 @@ const (
 	blockSize = 32
 )
 
-// Cryptor handles encryption/decryption with a shared secret
-type Cryptor interface {
+// Crypter handles encryption/decryption with a shared secret
+type Crypter interface {
 	Encrypt(b []byte) []byte
 	Decrypt(b []byte) ([]byte, error)
 }
 
-func NewCryptor(b64Key string) (Cryptor, error) {
+func NewCrypter(b64Key string) (Crypter, error) {
 	key, err := base64.StdEncoding.DecodeString(b64Key)
 	if err != nil {
 		return nil, err

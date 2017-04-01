@@ -5,17 +5,19 @@ import (
 	"log"
 	"net"
 
+	"github.com/APTy/gibs/icmpcat"
+
 	"golang.org/x/net/ipv4"
 )
 
 type CLI struct {
-	icmp  ICMPCat
+	icmp  icmpcat.ICMPCat
 	input Input
 	sema  chan bool
 }
 
 func NewCLI() (*CLI, error) {
-	icmp, err := NewICMPCat()
+	icmp, err := icmpcat.New()
 	if err != nil {
 		return nil, err
 	}

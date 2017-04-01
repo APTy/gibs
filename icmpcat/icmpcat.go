@@ -1,4 +1,4 @@
-package main
+package icmpcat
 
 import (
 	"fmt"
@@ -31,26 +31,26 @@ type ICMPCat interface {
 	Listen()
 }
 
-// NewICMPCat returns an object for sending/receiving data over ICMP.
-func NewICMPCat() (ICMPCat, error) {
+// New returns an object for sending/receiving data over ICMP.
+func New() (ICMPCat, error) {
 	conn, err := icmp.ListenPacket(icmpIPv4, localIfc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to establish ICMP connection: %v", err)
 	}
-	cryptor, err := NewCryptor(secret)
+	crypter, err := NewCrypter(secret)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create cryptor: %v", err)
+		return nil, fmt.Errorf("failed to create crypter: %v", err)
 	}
 	return &icmpCat{
 		conn:    conn,
-		cryptor: cryptor,
+		crypter: crypter,
 		seq:     seqInit,
 	}, nil
 }
 
 type icmpCat struct {
 	conn     *icmp.PacketConn
-	cryptor  Cryptor
+	crypter  Crypter
 	seq      int
 	callback func(*net.IPAddr, []byte)
 }
@@ -68,7 +68,7 @@ func (c *icmpCat) Send(typ ipv4.ICMPType, b []byte, hostIP string) error {
 		if end > len(b) {
 			end = len(b)
 		}
-		data := c.cryptor.Encrypt(b[start:end])
+		data := c.crypter.Encrypt(b[start:end])
 		// log.Printf("sent %x", data)
 		msg, err := newEcho(typ, data, c.seq)
 		if err != nil {
@@ -100,7 +100,7 @@ func (c *icmpCat) Listen() {
 			continue
 		}
 		// log.Printf("got %x", msg)
-		res, err := c.cryptor.Decrypt(msg)
+		res, err := c.crypter.Decrypt(msg)
 		if err != nil {
 			continue
 		}
