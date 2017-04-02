@@ -17,5 +17,5 @@ func main() {
 	if flags.host == "" {
 		log.Fatal("missing host or cmd")
 	}
-	cli.SendCmd(flags.cmd, flags.host)
+	cli.OpenShell(flags.host)
 }

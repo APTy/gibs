@@ -2,37 +2,43 @@ package icmpcat
 
 import (
 	"fmt"
+	"io"
 	"log"
-	"net"
 
 	"golang.org/x/net/icmp"
-	"golang.org/x/net/ipv4"
 )
 
 const (
 	secret   = "Ezv27ceMoBruteP4gh1c6Kebs69J4F5KhJNIewmGJxY="
 	icmpIPv4 = "ip4:icmp"
 	localIfc = "0.0.0.0"
-	seqInit  = 1
-	mtu      = 1400
 )
 
 // ICMPCat allows for read/write access to a remote host
 // over ICMP to a node also running ICMPCat.
 type ICMPCat interface {
 
-	// Send a slice of bytes to the remote host.
-	Send(ipv4.ICMPType, []byte, string) error
+	// Open a connection to the remote host.
+	Connect(string) error
+
+	// Accept will listen for a new connection.
+	Accept() error
+
+	// Close destroys the connection.
+	Close() error
+
+	// Write data over the connection.
+	Send(io.Reader) error
 
 	// OnReceive registers a callback to invoke with received messages.
-	OnReceive(func(*net.IPAddr, []byte))
+	OnReceive(func(io.Reader))
 
 	// Listen blocks to receive incoming messages.
 	Listen()
 }
 
 // New returns an object for sending/receiving data over ICMP.
-func New() (ICMPCat, error) {
+func NewV2() (ICMPCat, error) {
 	conn, err := icmp.ListenPacket(icmpIPv4, localIfc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to establish ICMP connection: %v", err)
@@ -41,70 +47,81 @@ func New() (ICMPCat, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create crypter: %v", err)
 	}
-	return &icmpCat{
-		conn:    conn,
+	return &icmpCatV2{
+		_conn:   conn,
 		crypter: crypter,
-		seq:     seqInit,
 	}, nil
 }
 
-type icmpCat struct {
-	conn     *icmp.PacketConn
+type icmpCatV2 struct {
+	_conn    *icmp.PacketConn
+	conn     *conn
 	crypter  Crypter
-	seq      int
-	callback func(*net.IPAddr, []byte)
+	callback func(io.Reader)
 }
 
-func (c *icmpCat) Send(typ ipv4.ICMPType, b []byte, hostIP string) error {
-	host := net.ParseIP(hostIP)
-	if host == nil {
-		return fmt.Errorf("failed to parse IP: %v", hostIP)
+func (c *icmpCatV2) Connect(hostIP string) error {
+	conn, err := newClientConn(c._conn, c.crypter, hostIP)
+	if err != nil {
+		return err
 	}
-	ip := &net.IPAddr{IP: host}
-
-	for i := 0; i <= len(b)/mtu; i++ {
-		start := i * mtu
-		end := (i*mtu + mtu)
-		if end > len(b) {
-			end = len(b)
-		}
-		data := c.crypter.Encrypt(b[start:end])
-		// log.Printf("sent %x", data)
-		msg, err := newEcho(typ, data, c.seq)
-		if err != nil {
-			return err
-		}
-
-		if _, err := c.conn.WriteTo(msg, ip); err != nil {
-			return err
-		}
-		c.seq++
+	if conn.sendHello(); err != nil {
+		return err
 	}
+	if err := conn.recvHello(); err != nil {
+		return err
+	}
+	c.conn = conn
+	return nil
+
+}
+
+func (c *icmpCatV2) Accept() error {
+	conn, err := newServerConn(c._conn, c.crypter)
+	if err != nil {
+		return err
+	}
+	if err := conn.acceptHello(); err != nil {
+		return err
+	}
+	if err := conn.ackHello(); err != nil {
+		return err
+	}
+	c.conn = conn
 	return nil
 }
 
-func (c *icmpCat) OnReceive(callback func(*net.IPAddr, []byte)) {
+func (c *icmpCatV2) Close() error {
+	return nil
+}
+
+func (c *icmpCatV2) Send(r io.Reader) error {
+	if c.conn.isServer() {
+		c.conn.waitForSendRequest()
+	}
+	buf := make([]byte, 1350)
+	for {
+		n, err := r.Read(buf)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			log.Printf("Send err: %v", err)
+			return err
+		}
+		c.conn.sendDataStream(buf[:n])
+	}
+	c.conn.sendDataEOF()
+	return nil
+}
+
+func (c *icmpCatV2) OnReceive(callback func(io.Reader)) {
 	c.callback = callback
 }
 
-func (c *icmpCat) Listen() {
-	for {
-		buf := make([]byte, 1500)
-		n, peer, err := c.conn.ReadFrom(buf)
-		if err != nil {
-			log.Printf("error: %v", err)
-			continue
-		}
-		msg, err := parseEcho(buf, n)
-		if err != nil {
-			continue
-		}
-		// log.Printf("got %x", msg)
-		res, err := c.crypter.Decrypt(msg)
-		if err != nil {
-			continue
-		}
-		ipPeer, _ := peer.(*net.IPAddr)
-		c.callback(ipPeer, res)
-	}
+func (c *icmpCatV2) Listen() {
+	log.Printf("Listening for data streams")
+	c.conn.onData(func(r io.Reader) {
+		c.callback(r)
+	})
+	select {}
 }
